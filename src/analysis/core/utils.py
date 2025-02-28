@@ -46,6 +46,10 @@ def load_data_from_currencies(currencies: List[Currency], bounds: Optional[Bound
     return df_prices
 
 
+def display_cov_matrix(cov_matrix: np.ndarray, currencies: List[str]) -> None:
+    print(pd.DataFrame(data=cov_matrix, index=currencies, columns=currencies))
+
+
 def compute_log_returns(df_prices: pd.DataFrame) -> pd.DataFrame:
     """Compute log returns for all columns in df_prices"""
     df_returns: pd.DataFrame = pd.DataFrame()

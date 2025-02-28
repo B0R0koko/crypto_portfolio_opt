@@ -8,7 +8,7 @@ import pandas as pd
 from scipy.optimize import minimize
 
 from analysis.core.time_utils import Bounds
-from analysis.core.utils import attach_usdt_to_returns
+from analysis.core.utils import attach_usdt_to_returns, display_cov_matrix
 from src.analysis.core.currency import Currency
 from src.analysis.core.utils import load_data_from_currencies, compute_log_returns
 
@@ -42,6 +42,8 @@ def get_max_sharpe_portfolio(df_returns: pd.DataFrame, currencies: List[Currency
     vec_expected_returns: np.ndarray = df_returns.mean().to_numpy()
     cov_matrix: np.ndarray = df_returns.cov().to_numpy()
 
+    display_cov_matrix(cov_matrix=cov_matrix, currencies=df_returns.columns)
+
     res = minimize(
         fun=partial(
             max_sharpe_objective, vec_expected_returns=vec_expected_returns, cov_matrix=cov_matrix
@@ -64,7 +66,7 @@ if __name__ == "__main__":
     currencies: List[Currency] = [
         Currency.BTC,
         Currency.ETH,
-        # Currency.USDT,
+        Currency.USDT,
         Currency.XRP,
         Currency.LINK
     ]
@@ -73,7 +75,7 @@ if __name__ == "__main__":
 
     df_prices: pd.DataFrame = load_data_from_currencies(bounds=bounds, currencies=currencies)
     df_returns: pd.DataFrame = compute_log_returns(df_prices=df_prices)
-    # attach_usdt_to_returns(df_returns=df_returns)
+    attach_usdt_to_returns(df_returns=df_returns)
 
     portfolio: Dict[Currency, float] = get_max_sharpe_portfolio(
         df_returns=df_returns, currencies=currencies
