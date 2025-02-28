@@ -30,19 +30,24 @@ def hh_constraint(weights: np.ndarray) -> float:
     return -(np.sum(weights ** 2) - 0.5)
 
 
-def get_max_sharpe_portfolio(df_returns: pd.DataFrame, currencies: List[Currency]) -> Dict[Currency, float]:
+def get_max_sharpe_portfolio(
+        df_returns: pd.DataFrame, currencies: List[Currency], display_cov: bool = False
+) -> Dict[Currency, float]:
     """Maximizes Sharpe ratio and returns the weights of the portfolio."""
     assert all(currency.name in df_returns.columns for currency in currencies), "Not all currencies are in df_returns"
+    cols: List[str] = [currency.name for currency in currencies]
+
     constraints = [{"type": "eq", "fun": weight_constraint}]
     n_assets: int = len(currencies)
     # Create bounds for the weights, we only allow long positions, therefore each weight is within (0, 1)
     bounds: List[Tuple[float, float]] = [(0, 1) for _ in range(n_assets)]
     x0: np.ndarray = np.array([1 / n_assets] * n_assets)  # initial guess
 
-    vec_expected_returns: np.ndarray = df_returns.mean().to_numpy()
-    cov_matrix: np.ndarray = df_returns.cov().to_numpy()
+    vec_expected_returns: np.ndarray = df_returns[cols].mean().to_numpy()
+    cov_matrix: np.ndarray = df_returns[cols].cov().to_numpy()
 
-    display_cov_matrix(cov_matrix=cov_matrix, currencies=df_returns.columns)
+    if display_cov:
+        display_cov_matrix(cov_matrix=cov_matrix, currencies=df_returns.columns)
 
     res = minimize(
         fun=partial(
