@@ -39,6 +39,7 @@ def load_data_from_currencies(currencies: List[Currency], bounds: Optional[Bound
 
     # Pivot to get wide format with currencies as columns
     df_prices: pd.DataFrame = df_aggregated.pivot(index="date", columns="currency", values="price")
+    df_prices.index = pd.to_datetime(df_prices.index)
 
     if bounds is not None:
         df_prices = df_prices.loc[bounds.day0:bounds.day1]
