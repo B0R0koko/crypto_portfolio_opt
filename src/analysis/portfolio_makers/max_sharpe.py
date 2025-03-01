@@ -1,22 +1,17 @@
 import json
 from datetime import date
 from functools import partial
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+from analysis.core.portfolio_optimizer import PortfolioOptimizer
 from analysis.core.time_utils import Bounds
-from analysis.core.utils import attach_usdt_to_returns, display_cov_matrix
+from analysis.core.utils import attach_usdt_to_returns
 from src.analysis.core.currency import Currency
 from src.analysis.core.utils import load_data_from_currencies, compute_log_returns
-
-
-def max_sharpe_objective(weights: np.ndarray, vec_expected_returns: np.ndarray, cov_matrix: np.ndarray) -> float:
-    """Returns portfolio return over variance which should be maximized"""
-    sigma_p: float = np.sqrt(weights @ cov_matrix @ weights.T)  # find variance of the portfolio
-    return -np.dot(weights, vec_expected_returns) / sigma_p
 
 
 # Define constraints
@@ -25,41 +20,42 @@ def weight_constraint(weights: np.ndarray) -> float:
     return weights.sum() - 1
 
 
-def hh_constraint(weights: np.ndarray) -> float:
-    """HH constraint for portfolio concentration in one asset"""
-    return -(np.sum(weights ** 2) - 0.5)
+class MaxSharpePortfolio(PortfolioOptimizer):
 
+    def target_function(self, W: np.ndarray, R: np.ndarray, cov_matrix: np.ndarray) -> float:
+        """Returns portfolio return over variance which should be maximized"""
+        sigma_p: float = np.sqrt(W @ cov_matrix @ W.T)  # find variance of the portfolio
+        return -np.dot(W, R) / sigma_p
 
-def get_max_sharpe_portfolio(
-        df_returns: pd.DataFrame, currencies: List[Currency], display_cov: bool = False
-) -> Dict[Currency, float]:
-    """Maximizes Sharpe ratio and returns the weights of the portfolio."""
-    assert all(currency.name in df_returns.columns for currency in currencies), "Not all currencies are in df_returns"
-    cols: List[str] = [currency.name for currency in currencies]
+    def get_constraints(self) -> List[Dict[str, Any]]:
+        """Returns a List of dictionaries with constraints"""
+        return [
+            {"type": "eq", "fun": weight_constraint},
+        ]
 
-    constraints = [{"type": "eq", "fun": weight_constraint}]
-    n_assets: int = len(currencies)
-    # Create bounds for the weights, we only allow long positions, therefore each weight is within (0, 1)
-    bounds: List[Tuple[float, float]] = [(0, 1) for _ in range(n_assets)]
-    x0: np.ndarray = np.array([1 / n_assets] * n_assets)  # initial guess
+    def find_portfolio(self, df_returns: pd.DataFrame, selected_currencies: List[Currency]) -> Dict[Currency, float]:
+        """Returns optimal portfolio as a dictionary Dict[Currency, float]"""
+        assert all(currency.name in df_returns.columns for currency in selected_currencies), \
+            "Not all currencies are in df_returns"
 
-    vec_expected_returns: np.ndarray = df_returns[cols].mean().to_numpy()
-    cov_matrix: np.ndarray = df_returns[cols].cov().to_numpy()
+        n_assets: int = len(selected_currencies)
+        cols: List[str] = [currency.name for currency in selected_currencies]
 
-    if display_cov:
-        display_cov_matrix(cov_matrix=cov_matrix, currencies=df_returns.columns)
+        bounds: List[Tuple[float, float]] = [(0, 1) for _ in range(n_assets)]
+        x0: np.ndarray = np.array([1 / n_assets] * n_assets)  # initial guess
 
-    res = minimize(
-        fun=partial(
-            max_sharpe_objective, vec_expected_returns=vec_expected_returns, cov_matrix=cov_matrix
-        ),
-        x0=x0,
-        bounds=bounds,
-        constraints=constraints,  # type:ignore
-    )
+        R: np.ndarray = df_returns[cols].mean().to_numpy()  # returns vector
+        cov_matrix: np.ndarray = df_returns[cols].cov().to_numpy()  # var-covariance matrix
 
-    assert res.success, "Solver didn't finish with success status"
-    return dict(zip(currencies, res.x))
+        res = minimize(
+            fun=partial(self.target_function, R=R, cov_matrix=cov_matrix),
+            x0=x0,
+            bounds=bounds,
+            constraints=self.get_constraints(),  # type:ignore
+        )
+
+        assert res.success, "Solver didn't finish with success status"
+        return dict(zip(selected_currencies, res.x))
 
 
 if __name__ == "__main__":
@@ -82,8 +78,9 @@ if __name__ == "__main__":
     df_returns: pd.DataFrame = compute_log_returns(df_prices=df_prices)
     attach_usdt_to_returns(df_returns=df_returns)
 
-    portfolio: Dict[Currency, float] = get_max_sharpe_portfolio(
-        df_returns=df_returns, currencies=currencies
+    optimizer: MaxSharpePortfolio = MaxSharpePortfolio()
+    portfolio: Dict[Currency, float] = optimizer.find_portfolio(
+        df_returns=df_returns, selected_currencies=currencies,
     )
 
     print(json.dumps({currency.name: np.round(weight, 5) for currency, weight in portfolio.items()}, indent=4))

@@ -1,4 +1,5 @@
 from datetime import datetime, date, timedelta
+from typing import List
 
 
 def start_of_date(day: date) -> datetime:
@@ -26,3 +27,19 @@ class Bounds:
     @property
     def day1(self) -> date:
         return self.end_exclusive.date()
+
+    def generate_overlapping_bounds(self, step: timedelta, interval: timedelta) -> List["Bounds"]:
+        """Returns a list of bounds created from parent Bounds interval with a certain interval size and step"""
+        intervals: List["Bounds"] = []
+
+        lb = self.start_inclusive
+
+        while True:
+            rb: datetime = lb + interval
+            intervals.append(Bounds(start_inclusive=lb, end_exclusive=rb))  # create new overlapping sub-Bounds
+            lb += step
+
+            if rb >= self.end_exclusive:
+                break
+
+        return intervals
