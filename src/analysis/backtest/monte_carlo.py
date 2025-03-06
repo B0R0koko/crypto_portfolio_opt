@@ -23,8 +23,8 @@ def _simulate_correlated_paths(
     W_corr = (L @ W).T  # Shape: (num_steps, num_series)
 
     # Precompute drift and volatility terms
-    drift = (r - 0.5 * stddevs ** 2) * dt
-    diffusion = stddevs * W_corr
+    drift = (r - 0.5 * stddevs ** 2) * dt * 7
+    diffusion = (stddevs + 0.1) * W_corr
 
     # Initialize the price paths
     St = np.zeros((num_steps + 1, num_series))
